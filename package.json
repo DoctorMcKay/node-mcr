@@ -1,0 +1,22 @@
+{
+	"name": "mcr",
+	"version": "1.0.0",
+	"description": "Programatically redeem My Coke Rewards codes through node.js",
+	"keywords": [
+		"coke",
+		"Coca-Cola",
+		"rewards",
+		"loyalty",
+		"redeem",
+		"code",
+		"My Coke Rewards",
+		"Coke Rewards"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/DoctorMcKay/node-mcr.git"
+	},
+	"dependencies": {
+		"request": "^2.69.0"
+	}
+}
