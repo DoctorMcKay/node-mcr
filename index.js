@@ -51,22 +51,19 @@ MyCokeRewards.prototype._dumpResponse = function(response) {
 // https://www.mycokerewards.com/etc/designs/mcr/default/global/js/enterCode.js
 MyCokeRewards.prototype.redeemCode = function(code, callback, retry) {
 	var self = this;
+	
+	code = code.replace(/ /g, '').toUpperCase();
 	self._debug("Preflighting code " + code);
-	self._request.post("http://www.mycokerewards.com/ajax/v1/code/" + encodeURIComponent(code), function(error, response, body) {
-		if(error || response.statusCode != 200) {
-			callback("Error preflighting code: " + (error || "HTTP status " + response.statusCode) + ", dump to " + self._dumpResponse(response));
+	self._request.post({
+		"uri": "https://www.mycokerewards.com/ajax/v1/code/" + encodeURIComponent(code),
+		"json": true
+	}, function(err, response, body) {
+		if(err) {
+			callback("Error preflighting code: " + err.message + ", dump to " + self._dumpResponse(response));
 			return;
 		}
 		
-		var json;
-		try {
-			json = JSON.parse(body);
-		} catch(e) {
-			callback("Got bad JSON preflighting code " + code + ", dump to " + self._dumpResponse(response));
-			return;
-		}
-		
-		if(!json.pointsAwarded && !json.errorMessageInfo.errorMessage) {
+		if(!body.pointsAwarded && !(body.errorMessageInfo && body.errorMessageInfo.errorMessage)) {
 			if(retry) {
 				callback("No points awarded, no message, can't login. Dump to " + self._dumpResponse(response));
 			} else {
@@ -77,21 +74,21 @@ MyCokeRewards.prototype.redeemCode = function(code, callback, retry) {
 			return;
 		}
 		
-		if((json.responseCode != 0 && json.responseCode != 1) || !json.pointsAwarded) {
-			callback(null, json.errorMessageInfo.errorMessage);
+		if((body.responseCode != 0 && body.responseCode != 1) || !body.pointsAwarded) {
+			callback(null, body.errorMessageInfo.errorMessage);
 			return;
 		}
 		
-		if(json.responseCode == 0) {
+		if(body.responseCode == 0) {
 			// This happens when there's no brand selector
-			callback(null, json.errorMessageInfo.errorMessage, json.pointsAwarded, json.pointsBalance);
+			callback(null, body.errorMessageInfo.errorMessage, body.pointsAwarded, body.pointsBalance);
 			return;
 		}
 		
 		self._debug("Getting brand selector for code");
 		
 		// Get brands
-		self._request("http://www.mycokerewards.com/ajax/v1/brand", function(err, response, body) {
+		self._request.get("https://www.mycokerewards.com/ajax/v1/brand", function(err, response, body) {
 			if(err || response.statusCode != 200) {
 				callback("Error getting brands: " + (err || "HTTP status " + response.statusCode) + ". Dump to " + self._dumpResponse(response));
 				return;
@@ -105,21 +102,16 @@ MyCokeRewards.prototype.redeemCode = function(code, callback, retry) {
 			
 			self._debug("Using brand ID " + brand[1]);
 			
-			self._request.post("http://www.mycokerewards.com/ajax/v1/brand/" + brand[1] + "?code=" + encodeURIComponent(code), function(err, response, body) {
+			self._request.post({
+				"uri": "https://www.mycokerewards.com/ajax/v1/brand/" + brand[1] + "?code=" + encodeURIComponent(code),
+				"json": true
+			}, function(err, response, body) {
 				if(err || response.statusCode != 200) {
 					callback("Couldn't commit code " + code + " to brand " + brand[1] + ": " + (err || "HTTP status " + response.statusCode) + ". Dump to " + self._dumpResponse(response));
 					return;
 				}
 				
-				var json;
-				try {
-					json = JSON.parse(body);
-				} catch(e) {
-					callback("Invalid JSON committing code " + code + " to brand " + brand[1] + ". Dump to " + self._dumpResponse(response));
-					return;
-				}
-				
-				callback(null, json.errorMessageInfo.errorMessage, json.pointsAwarded, json.pointsBalance);
+				callback(null, body.errorMessageInfo.errorMessage, body.pointsAwarded, body.pointsBalance);
 			});
 		});
 	});
@@ -138,13 +130,16 @@ MyCokeRewards.prototype._redeemCodeLogin = function(code, callback) {
 
 MyCokeRewards.prototype.getEarnedPoints = function(callback, retry) {
 	var self = this;
-	self._request.get("http://www.mycokerewards.com/ajax/v1/header/pointsHistory", function(error, response, body) {
+	self._request.get({
+		"uri": "https://www.mycokerewards.com/ajax/v1/header/pointsHistory",
+		"json": true
+	}, function(error, response, body) {
 		if(error) {
 			callback(error + ". Dump to " + self._dumpResponse(response));
 			return;
 		}
 		
-		if(response.statusCode != 200) {
+		if(response.statusCode != 200 || body.responseMessage == "Unauthorized access") {
 			if(retry) {
 				callback("Invalid status code: " + response.statusCode + ". Dump to " + self._dumpResponse(response));
 			} else {
@@ -154,15 +149,7 @@ MyCokeRewards.prototype.getEarnedPoints = function(callback, retry) {
 			return;
 		}
 		
-		var pointData;
-		try {
-			pointData = JSON.parse(body);
-		} catch(e) {
-			callback("Invalid JSON received. Dump to " + self._dumpResponse(response));
-			return;
-		}
-		
-		if(pointData.globalErrors && pointData.globalErrors.length) {
+		if(body.globalErrors && body.globalErrors.length) {
 			if(retry) {
 				callback("Can't get points. Dump to " + self._dumpResponse(response));
 			} else {
@@ -172,13 +159,13 @@ MyCokeRewards.prototype.getEarnedPoints = function(callback, retry) {
 			return;
 		}
 		
-		if(!pointData.pointsHistoryHeader || !pointData.pointsHistoryHeader.pointLimit) {
-			self._debug(pointData);
+		if(!body.pointsHistoryHeader || !body.pointsHistoryHeader.pointLimit) {
+			self._debug(body);
 			callback("Got unexpected data. Dump to " + self._dumpResponse(response));
 			return;
 		}
 		
-		callback(null, pointData.pointsHistoryHeader.pointsRedeemed, pointData.pointsHistoryHeader.pointLimit);
+		callback(null, body.pointsHistoryHeader.pointsRedeemed, body.pointsHistoryHeader.pointLimit);
 	});
 };
 
@@ -209,7 +196,7 @@ MyCokeRewards.prototype._login = function(callback) {
 	
 	self._debug("Using transaction " + txid);
 	
-	self._request.get("http://www.mycokerewards.com/account/authenticate", function(err, response, body) {
+	self._request.get("https://www.mycokerewards.com/account/authenticate", function(err, response, body) {
 		self._debug("Hit authenticate page, proceeding with authentication...");
 		
 		self._request.post("https://coca-cola.janraincapture.com/widget/traditional_signin.jsonp", {"form":
@@ -222,7 +209,7 @@ MyCokeRewards.prototype._login = function(callback) {
 				"form": "userInformationForm",
 				"js_version": "63fc518",
 				"locale": "en-US",
-				"redirect_uri": "http://www.mycokerewards.com",
+				"redirect_uri": "https://www.mycokerewards.com",
 				"response_type": "token",
 				"settings_version": "",
 				"traditionalSignIn_emailAddress": self._username,
@@ -261,7 +248,7 @@ MyCokeRewards.prototype._login = function(callback) {
 				}
 				
 				self._debug("Signing in with access token " + token[1]);
-				self._request("http://www.mycokerewards.com/account/sign-in?accessToken=" + token[1] + "&provider=janrain", function(err, response, body) {
+				self._request("https://www.mycokerewards.com/account/sign-in?accessToken=" + token[1] + "&provider=janrain", function(err, response, body) {
 					if(err || response.statusCode >= 400) {
 						callback("Couldn't login: " + (err || "HTTP status " + response.statusCode) + ". Dump to " + self._dumpResponse(response));
 						return;
