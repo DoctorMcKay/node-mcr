@@ -12,6 +12,7 @@
 		"My Coke Rewards",
 		"Coke Rewards"
 	],
+	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/DoctorMcKay/node-mcr.git"
