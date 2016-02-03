@@ -27,7 +27,11 @@ MyCokeRewards.prototype._dumpResponse = function(response) {
 	var self = this;
 	var filename = Date.now();
 	
-	var contents = response.req.method + " " + response.req.path + "\nHost: " + response.req._headers.host + "\n\n" + response.body;
+	var contents = "";
+	
+	if (response) {
+		var contents = response.req.method + " " + response.req.path + "\nHost: " + response.req._headers.host + "\n\n" + response.body;
+	}
 	
 	self._debug("Writing HTTP response");
 	
