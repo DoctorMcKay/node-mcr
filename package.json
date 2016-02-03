@@ -1,6 +1,6 @@
 {
 	"name": "mcr",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Programatically redeem My Coke Rewards codes through node.js",
 	"keywords": [
 		"coke",
